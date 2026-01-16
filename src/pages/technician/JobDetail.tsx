@@ -32,7 +32,7 @@ const TechnicianJobDetail = () => {
   const { data: checklistData } = useQuery({
     queryKey: ['technician-checklist', id],
     queryFn: () => technicianAPI.getChecklist(Number(id)).then(res => res.data),
-    enabled: !!job && job.status !== 'offered',
+    enabled: !!job && (job.status === 'quality_check' || job.status === 'waiting_payment' || job.status === 'completed'),
   })
 
   const checklist = checklistData?.checklists || checklistData || []
@@ -238,7 +238,8 @@ const TechnicianJobDetail = () => {
   const isEnRoute = currentStatus === 'en_route'
   const isComponentPickup = currentStatus === 'component_pickup'
   const isArrived = currentStatus === 'arrived'
-  const isInProgress = ['diagnosing', 'quoted', 'signed_contract', 'repairing', 'waiting_parts', 'quality_check'].includes(currentStatus)
+  const isInProgress = ['diagnosing', 'quoted', 'signed_contract', 'repairing', 'waiting_parts'].includes(currentStatus)
+  const isQualityCheck = currentStatus === 'quality_check'
   const isWaitingPayment = currentStatus === 'waiting_payment'
   const isCompleted = ['completed', 'released'].includes(currentStatus)
 
@@ -442,8 +443,8 @@ const TechnicianJobDetail = () => {
             </div>
           </div>
 
-          {/* On My Way Button - Bottom CTA */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 md:static md:border-0 md:bg-transparent md:p-0 md:mt-4">
+          {/* Status Action Buttons - Bottom CTA */}
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 md:static md:border-0 md:bg-transparent md:p-0 md:mt-4 space-y-2">
             <button
               onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'en_route' })}
               disabled={updateStatusMutation.isPending}
@@ -457,7 +458,24 @@ const TechnicianJobDetail = () => {
               ) : (
                 <div className="flex items-center justify-center gap-2">
                   <Navigation className="w-5 h-5" />
-                  <span>On My Way</span>
+                  <span>On the Way</span>
+                </div>
+              )}
+            </button>
+            <button
+              onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'component_pickup' })}
+              disabled={updateStatusMutation.isPending}
+              className="w-full px-6 py-4 bg-violet-600 text-white rounded-xl font-bold text-lg hover:bg-violet-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-violet-600/20"
+            >
+              {updateStatusMutation.isPending ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Updating...</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <CheckCircle className="w-5 h-5" />
+                  <span>Pickup Component</span>
                 </div>
               )}
             </button>
@@ -465,8 +483,8 @@ const TechnicianJobDetail = () => {
         </>
       )}
 
-      {/* EN ROUTE / COMPONENT PICKUP / ARRIVED / IN PROGRESS STATES */}
-      {(isEnRoute || isComponentPickup || isArrived || isInProgress || isWaitingPayment || isCompleted) && (
+      {/* EN ROUTE / COMPONENT PICKUP / ARRIVED / IN PROGRESS / QUALITY CHECK / WAITING PAYMENT STATES */}
+      {(isEnRoute || isComponentPickup || isArrived || isInProgress || isQualityCheck || isWaitingPayment || isCompleted) && (
         <>
           {/* Device Details */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
@@ -666,8 +684,8 @@ const TechnicianJobDetail = () => {
             </div>
           )}
 
-          {/* Checklist */}
-          {checklist && checklist.length > 0 && (
+          {/* Checklist - Only show before payment */}
+          {(isWaitingPayment || isQualityCheck) && checklist && checklist.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
               <h3 className="text-xs font-semibold text-slate-700 mb-3">
                 Checklist ({checklist.filter((item: any) => item.is_completed || item.completed).length}/{checklist.length})
