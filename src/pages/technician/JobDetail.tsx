@@ -13,9 +13,12 @@ const TechnicianJobDetail = () => {
   const [showCustomerDetails, setShowCustomerDetails] = useState(false)
   const [showEtaModal, setShowEtaModal] = useState(false)
   const [manualEtaMinutes, setManualEtaMinutes] = useState(30)
+  const [etaCountdown, setEtaCountdown] = useState<number | null>(null)
+  const [etaTimeoutReached, setEtaTimeoutReached] = useState(false)
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<{ technician?: google.maps.Marker; customer?: google.maps.Marker }>({})
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const { data: jobData, isLoading } = useQuery({
     queryKey: ['technician-job', id],
@@ -92,6 +95,43 @@ const TechnicianJobDetail = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['technician-job', id] })
       setShowEtaModal(false)
+
+      // Start countdown for manual ETA
+      const arrivalTime = new Date(Date.now() + etaMinutes * 60000)
+      const countdownSeconds = Math.floor((arrivalTime.getTime() - Date.now()) / 1000)
+      setEtaCountdown(countdownSeconds)
+      setEtaTimeoutReached(false)
+
+      // Start countdown timer
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+      }
+      countdownIntervalRef.current = setInterval(() => {
+        setEtaCountdown(prev => {
+          if (prev === null || prev <= 0) {
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current)
+            }
+            setEtaTimeoutReached(true)
+            // Send push notification when ETA timeout reached
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('ETA Timeout', {
+                body: 'Your estimated arrival time has been reached. Please update your status.',
+                icon: '/pwa-192x192.png',
+                badge: '/pwa-192x192.png',
+                tag: `eta-timeout-${id}`,
+                requireInteraction: true,
+              })
+            }
+            // Also try to vibrate if supported
+            if ('vibrate' in navigator) {
+              navigator.vibrate([200, 100, 200])
+            }
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
     },
   })
 
@@ -191,17 +231,27 @@ const TechnicianJobDetail = () => {
       if (markersRef.current.customer && (markersRef.current.customer as any).setMap) {
         (markersRef.current.customer as any).setMap(null)
       }
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+      }
     }
   }, [jobData])
+
+  // Request notification permission on component mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
 
   // Show ETA modal if no automatic ETA after 2 seconds
   useEffect(() => {
     const job = jobData?.job || jobData
     const isEnRouteStatus = job?.status === 'en_route'
-    
+
     if (isEnRouteStatus && jobData) {
       const eta = jobData.eta
-      
+
       if (!eta) {
         const timer = setTimeout(() => {
           setShowEtaModal(true)
@@ -486,33 +536,116 @@ const TechnicianJobDetail = () => {
       {/* EN ROUTE / COMPONENT PICKUP / ARRIVED / IN PROGRESS / QUALITY CHECK / WAITING PAYMENT STATES */}
       {(isEnRoute || isComponentPickup || isArrived || isInProgress || isQualityCheck || isWaitingPayment || isCompleted) && (
         <>
-          {/* Device Details */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-            <h2 className="text-lg font-bold text-slate-900 mb-1">
-              {device.brand} {device.device_type}
-            </h2>
-            {ticket.issue_description && (
-              <p className="text-sm text-slate-600 mt-2">{ticket.issue_description}</p>
-            )}
-          </div>
+          {/* Status Badge - Only show for en_route and component_pickup */}
+          {(isEnRoute || isComponentPickup) && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-slate-900">
+                    {isEnRoute ? 'On the Way' : 'Component Pickup'}
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-1">
+                    {isEnRoute ? 'Traveling to customer location' : 'Picking up components for repair'}
+                  </p>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  isEnRoute
+                    ? 'bg-purple-100 text-purple-800'
+                    : 'bg-violet-100 text-violet-800'
+                }`}>
+                  {isEnRoute ? 'EN ROUTE' : 'PICKUP'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Device Details - Compact for en_route */}
+          {isEnRoute ? (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-bold text-slate-900 truncate">
+                    {device.brand} {device.device_type}
+                  </h2>
+                  {ticket.issue_description && (
+                    <p className="text-xs text-slate-600 mt-1 line-clamp-2">
+                      {ticket.issue_description}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 ml-3">
+                  {customer.phone && (
+                    <a
+                      href={`tel:${customer.phone}`}
+                      className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                      <Phone className="w-4 h-4" />
+                    </a>
+                  )}
+                  {whatsappLink && (
+                    <a
+                      href={whatsappLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Device Details - Full for other states */
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+              <h2 className="text-lg font-bold text-slate-900 mb-1">
+                {device.brand} {device.device_type}
+              </h2>
+              {ticket.issue_description && (
+                <p className="text-sm text-slate-600 mt-2">{ticket.issue_description}</p>
+              )}
+            </div>
+          )}
 
           {/* Map & ETA - Only for en_route */}
           {isEnRoute && jobData && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-              {/* ETA Display */}
+              {/* ETA Display with Countdown */}
               {jobData.eta && (
                 <div className="p-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs opacity-90 mb-1">Estimated Arrival</p>
+                    <div className="flex-1">
+                      <p className="text-xs opacity-90 mb-1">
+                        {jobData.eta.is_manual ? 'Manual ETA' : 'Estimated Arrival'}
+                      </p>
                       <p className="text-2xl font-bold">{jobData.eta.eta_text}</p>
                       {jobData.eta.arrival_window_text && (
                         <p className="text-xs opacity-90 mt-1">
                           Window: {jobData.eta.arrival_window_text}
                         </p>
                       )}
+
+                      {/* Countdown Timer for Manual ETA */}
+                      {jobData.eta.is_manual && etaCountdown !== null && etaCountdown > 0 && (
+                        <div className="mt-2 p-2 bg-black/20 rounded-lg">
+                          <div className="text-xs opacity-90 mb-1">Time Remaining</div>
+                          <div className="text-lg font-bold tabular-nums">
+                            {Math.floor(etaCountdown / 3600).toString().padStart(2, '0')}:
+                            {Math.floor((etaCountdown % 3600) / 60).toString().padStart(2, '0')}:
+                            {(etaCountdown % 60).toString().padStart(2, '0')}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ETA Timeout Warning */}
+                      {etaTimeoutReached && jobData.eta.is_manual && (
+                        <div className="mt-2 p-2 bg-red-600/80 rounded-lg border border-red-400">
+                          <p className="text-xs font-semibold">⏰ ETA Timeout Reached!</p>
+                          <p className="text-xs opacity-90">Please update your arrival status</p>
+                        </div>
+                      )}
                     </div>
-                    <Clock className="w-12 h-12 opacity-20" />
+                    <Clock className="w-12 h-12 opacity-20 flex-shrink-0" />
                   </div>
                   {jobData.eta.distance_km && (
                     <div className="mt-3 pt-3 border-t border-white/20">
@@ -524,18 +657,20 @@ const TechnicianJobDetail = () => {
                 </div>
               )}
 
-              {/* Map */}
-              <div className="relative" style={{ height: '300px' }}>
-                <div ref={mapRef} className="w-full h-full" />
-                {!jobData.locations && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
-                    <p className="text-slate-500 text-sm">Loading map...</p>
-                  </div>
-                )}
-              </div>
+              {/* Map - Hide if manual ETA timeout reached */}
+              {jobData.eta && !(jobData.eta.is_manual && etaTimeoutReached) && (
+                <div className="relative" style={{ height: '300px' }}>
+                  <div ref={mapRef} className="w-full h-full" />
+                  {!jobData.locations && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
+                      <p className="text-slate-500 text-sm">Loading map...</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
-              {/* Manual ETA Button */}
-              {!jobData.eta && (
+              {/* Manual ETA Button - Only show if no ETA and not timed out */}
+              {!jobData.eta && !etaTimeoutReached && (
                 <div className="p-4 border-t border-slate-200">
                   <button
                     onClick={() => setShowEtaModal(true)}
@@ -545,45 +680,73 @@ const TechnicianJobDetail = () => {
                   </button>
                 </div>
               )}
+
+              {/* ETA Timeout Actions */}
+              {etaTimeoutReached && jobData.eta?.is_manual && (
+                <div className="p-4 border-t border-slate-200 bg-red-50">
+                  <div className="text-center">
+                    <p className="text-sm text-red-800 font-medium mb-3">
+                      Your estimated arrival time has passed. Please update your status.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'arrived' })}
+                        className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50"
+                        disabled={updateStatusMutation.isPending}
+                      >
+                        I've Arrived
+                      </button>
+                      <button
+                        onClick={() => setShowEtaModal(true)}
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all"
+                      >
+                        Update ETA
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Quick Actions Bar */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
-            <div className="grid grid-cols-2 gap-2">
-              {customer.phone && (
+          {/* Quick Actions Bar - Skip for en_route (already in device details) */}
+          {!isEnRoute && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
+              <div className="grid grid-cols-2 gap-2">
+                {customer.phone && (
+                  <a
+                    href={`tel:${customer.phone}`}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold text-sm active:scale-95 transition-all"
+                  >
+                    <Phone className="w-4 h-4" />
+                    Call Customer
+                  </a>
+                )}
+                {locationLink && (
+                  <a
+                    href={locationLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold text-sm active:scale-95 transition-all"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    Navigate
+                  </a>
+                )}
+              </div>
+              {whatsappLink && (
                 <a
-                  href={`tel:${customer.phone}`}
-                  className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold text-sm active:scale-95 transition-all"
-                >
-                  <Phone className="w-4 h-4" />
-                  Call Customer
-                </a>
-              )}
-              {locationLink && (
-                <a
-                  href={locationLink}
+                  href={whatsappLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold text-sm active:scale-95 transition-all"
+                  className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold text-sm hover:bg-green-600 active:scale-95 transition-all"
                 >
-                  <Navigation className="w-4 h-4" />
-                  Navigate
+                  <MessageCircle className="w-4 h-4" />
+                  WhatsApp Customer
                 </a>
               )}
             </div>
-            {whatsappLink && (
-              <a
-                href={whatsappLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold text-sm hover:bg-green-600 active:scale-95 transition-all"
-              >
-                <MessageCircle className="w-4 h-4" />
-                WhatsApp Customer
-              </a>
-            )}
-          </div>
+          )}
 
           {/* Customer Contact */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
