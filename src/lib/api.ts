@@ -88,8 +88,8 @@ export const technicianAPI = {
     api.get('/technician/jobs/offered'),
   getAssignedJobs: () =>
     api.get('/technician/jobs/assigned'),
-  acceptJob: (id: number) =>
-    api.post(`/technician/jobs/${id}/accept`),
+  acceptJob: (id: number, allowExpired: boolean = false) =>
+    api.post(`/technician/jobs/${id}/accept`, { allow_expired: allowExpired }),
   rejectJob: (id: number) =>
     api.post(`/technician/jobs/${id}/reject`),
   getJob: (id: number) =>
