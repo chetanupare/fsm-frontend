@@ -100,6 +100,8 @@ export const technicianAPI = {
     api.post(`/technician/jobs/${id}/sign-contract`),
   updateJobStatus: (id: number, status: string) =>
     api.put(`/technician/jobs/${id}/status`, { status }),
+  updateJobEta: (id: number, etaMinutes: number) =>
+    api.put(`/technician/jobs/${id}/eta`, { eta_minutes: etaMinutes }),
   uploadAfterPhoto: (id: number, file: File) => {
     const formData = new FormData()
     formData.append('photo', file)

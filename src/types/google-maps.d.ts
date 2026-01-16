@@ -10,12 +10,14 @@ declare namespace google {
       constructor(mapDiv: HTMLElement | null, opts?: MapOptions);
       setCenter(latlng: LatLng | LatLngLiteral): void;
       setZoom(zoom: number): void;
+      fitBounds?(bounds: LatLngBounds): void;
     }
 
     class Marker {
       constructor(opts?: MarkerOptions);
       setPosition(latlng: LatLng | LatLngLiteral): void;
       addListener(eventName: string, handler: Function): void;
+      setMap?(map: Map | null): void;
     }
 
     class Geocoder {
@@ -63,6 +65,43 @@ declare namespace google {
       lat: number;
       lng: number;
     }
+
+    class LatLngBounds {
+      extend(point: LatLng | LatLngLiteral): void;
+    }
+
+    class DirectionsService {
+      route(request: DirectionsRequest, callback: (result: DirectionsResult | null, status: DirectionsStatus) => void): void;
+    }
+
+    class DirectionsRenderer {
+      constructor(opts?: DirectionsRendererOptions);
+      setDirections(result: DirectionsResult): void;
+    }
+
+    interface DirectionsRequest {
+      origin: LatLng | LatLngLiteral | string;
+      destination: LatLng | LatLngLiteral | string;
+      travelMode?: TravelMode | string;
+    }
+
+    interface DirectionsResult {
+      routes: any[];
+    }
+
+    interface DirectionsRendererOptions {
+      map?: Map;
+      suppressMarkers?: boolean;
+    }
+
+    enum TravelMode {
+      DRIVING = 'DRIVING',
+      WALKING = 'WALKING',
+      BICYCLING = 'BICYCLING',
+      TRANSIT = 'TRANSIT',
+    }
+
+    type DirectionsStatus = 'OK' | 'NOT_FOUND' | 'ZERO_RESULTS' | 'MAX_WAYPOINTS_EXCEEDED' | 'INVALID_REQUEST' | 'OVER_QUERY_LIMIT' | 'REQUEST_DENIED' | 'UNKNOWN_ERROR';
 
     const GeocoderStatus: {
       OK: 'OK';

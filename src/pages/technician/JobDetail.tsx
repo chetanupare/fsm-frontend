@@ -1,9 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, MapPin, Clock, User, Phone, CheckCircle, Upload, Navigation, FileText, MessageCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, User, Phone, CheckCircle, Upload, Navigation, FileText, MessageCircle, AlertCircle, X } from 'lucide-react'
 import { technicianAPI } from '../../lib/api'
 import { format } from 'date-fns'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const TechnicianJobDetail = () => {
   const { id } = useParams()
@@ -11,10 +11,20 @@ const TechnicianJobDetail = () => {
   const queryClient = useQueryClient()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [showCustomerDetails, setShowCustomerDetails] = useState(false)
+  const [showEtaModal, setShowEtaModal] = useState(false)
+  const [manualEtaMinutes, setManualEtaMinutes] = useState(30)
+  const mapRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<google.maps.Map | null>(null)
+  const markersRef = useRef<{ technician?: google.maps.Marker; customer?: google.maps.Marker }>({})
 
   const { data: jobData, isLoading } = useQuery({
     queryKey: ['technician-job', id],
     queryFn: () => technicianAPI.getJob(Number(id)).then(res => res.data),
+    refetchInterval: (data: any) => {
+      // Poll every 30 seconds if job is en_route
+      const job = data?.job || data
+      return job?.status === 'en_route' ? 30000 : false
+    },
   })
 
   const job = jobData?.job || jobData
@@ -60,6 +70,130 @@ const TechnicianJobDetail = () => {
       queryClient.invalidateQueries({ queryKey: ['technician-checklist', id] })
     },
   })
+
+  const updateEtaMutation = useMutation({
+    mutationFn: (etaMinutes: number) => technicianAPI.updateJobEta(Number(id), etaMinutes),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['technician-job', id] })
+      setShowEtaModal(false)
+    },
+  })
+
+  // Initialize map when en_route
+  useEffect(() => {
+    const job = jobData?.job || jobData
+    const isEnRouteStatus = job?.status === 'en_route'
+    
+    if (isEnRouteStatus && jobData && mapRef.current && window.google && window.google.maps) {
+      const locations = jobData.locations
+      
+      if (locations?.technician && locations?.customer) {
+        // Initialize map
+        if (!mapInstanceRef.current) {
+          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+            zoom: 12,
+            center: {
+              lat: locations.technician.latitude,
+              lng: locations.technician.longitude,
+            },
+            mapTypeControl: true,
+            streetViewControl: false,
+          })
+
+          // Add technician marker
+          markersRef.current.technician = new window.google.maps.Marker({
+            position: {
+              lat: locations.technician.latitude,
+              lng: locations.technician.longitude,
+            },
+            map: mapInstanceRef.current,
+            title: 'Your Location',
+          } as any)
+
+          // Add customer marker
+          markersRef.current.customer = new window.google.maps.Marker({
+            position: {
+              lat: locations.customer.latitude,
+              lng: locations.customer.longitude,
+            },
+            map: mapInstanceRef.current,
+            title: 'Customer Location',
+          } as any)
+
+          // Draw route if DirectionsService is available
+          try {
+            const directionsService = new (window.google.maps as any).DirectionsService()
+            const directionsRenderer = new (window.google.maps as any).DirectionsRenderer({
+              map: mapInstanceRef.current,
+              suppressMarkers: true,
+            })
+
+            directionsService.route(
+              {
+                origin: { lat: locations.technician.latitude, lng: locations.technician.longitude },
+                destination: { lat: locations.customer.latitude, lng: locations.customer.longitude },
+                travelMode: (window.google.maps as any).TravelMode?.DRIVING || 'DRIVING',
+              },
+              (result: any, status: any) => {
+                if (status === 'OK' && directionsRenderer) {
+                  directionsRenderer.setDirections(result)
+                }
+              }
+            )
+          } catch (e) {
+            // Directions service not available, skip route drawing
+          }
+
+          // Fit bounds to show both markers
+          try {
+            const bounds = new (window.google.maps as any).LatLngBounds()
+            bounds.extend({ lat: locations.technician.latitude, lng: locations.technician.longitude })
+            bounds.extend({ lat: locations.customer.latitude, lng: locations.customer.longitude })
+            if (mapInstanceRef.current && (mapInstanceRef.current as any).fitBounds) {
+              (mapInstanceRef.current as any).fitBounds(bounds)
+            }
+          } catch (e) {
+            // LatLngBounds not available, skip bounds fitting
+          }
+        } else {
+          // Update technician marker position
+          if (markersRef.current.technician) {
+            markersRef.current.technician.setPosition({
+              lat: locations.technician.latitude,
+              lng: locations.technician.longitude,
+            })
+          }
+        }
+      }
+    }
+
+    // Cleanup
+    return () => {
+      if (markersRef.current.technician && (markersRef.current.technician as any).setMap) {
+        (markersRef.current.technician as any).setMap(null)
+      }
+      if (markersRef.current.customer && (markersRef.current.customer as any).setMap) {
+        (markersRef.current.customer as any).setMap(null)
+      }
+    }
+  }, [jobData])
+
+  // Show ETA modal if no automatic ETA after 2 seconds
+  useEffect(() => {
+    const job = jobData?.job || jobData
+    const isEnRouteStatus = job?.status === 'en_route'
+    
+    if (isEnRouteStatus && jobData) {
+      const eta = jobData.eta
+      
+      if (!eta) {
+        const timer = setTimeout(() => {
+          setShowEtaModal(true)
+        }, 2000)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [jobData])
 
   if (isLoading) {
     return (
@@ -328,6 +462,58 @@ const TechnicianJobDetail = () => {
             )}
           </div>
 
+          {/* Map & ETA - Only for en_route */}
+          {isEnRoute && jobData && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+              {/* ETA Display */}
+              {jobData.eta && (
+                <div className="p-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs opacity-90 mb-1">Estimated Arrival</p>
+                      <p className="text-2xl font-bold">{jobData.eta.eta_text}</p>
+                      {jobData.eta.arrival_window_text && (
+                        <p className="text-xs opacity-90 mt-1">
+                          Window: {jobData.eta.arrival_window_text}
+                        </p>
+                      )}
+                    </div>
+                    <Clock className="w-12 h-12 opacity-20" />
+                  </div>
+                  {jobData.eta.distance_km && (
+                    <div className="mt-3 pt-3 border-t border-white/20">
+                      <p className="text-xs opacity-90">
+                        Distance: {jobData.eta.distance_km.toFixed(1)} km
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Map */}
+              <div className="relative" style={{ height: '300px' }}>
+                <div ref={mapRef} className="w-full h-full" />
+                {!jobData.locations && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
+                    <p className="text-slate-500 text-sm">Loading map...</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Manual ETA Button */}
+              {!jobData.eta && (
+                <div className="p-4 border-t border-slate-200">
+                  <button
+                    onClick={() => setShowEtaModal(true)}
+                    className="w-full px-4 py-2 bg-yellow-500 text-white rounded-lg font-semibold text-sm hover:bg-yellow-600 active:scale-95 transition-all"
+                  >
+                    Set ETA Manually
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Quick Actions Bar */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
             <div className="grid grid-cols-2 gap-2">
@@ -557,6 +743,58 @@ const TechnicianJobDetail = () => {
       )}
 
       </div>
+
+      {/* Manual ETA Modal */}
+      {showEtaModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900">Set Estimated Arrival Time</h3>
+              <button
+                onClick={() => setShowEtaModal(false)}
+                className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-600" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              Unable to calculate ETA automatically. Please set your estimated arrival time manually.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Estimated Time (minutes)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="1440"
+                value={manualEtaMinutes}
+                onChange={(e) => setManualEtaMinutes(parseInt(e.target.value) || 30)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                placeholder="30"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Estimated arrival: {format(new Date(Date.now() + manualEtaMinutes * 60000), 'h:mm a')}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowEtaModal(false)}
+                className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => updateEtaMutation.mutate(manualEtaMinutes)}
+                disabled={updateEtaMutation.isPending}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {updateEtaMutation.isPending ? 'Setting...' : 'Set ETA'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
