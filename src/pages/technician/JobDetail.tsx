@@ -18,7 +18,7 @@ const TechnicianJobDetail = () => {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<{ technician?: google.maps.Marker; customer?: google.maps.Marker }>({})
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const countdownIntervalRef = useRef<number | null>(null)
 
   const { data: jobData, isLoading } = useQuery({
     queryKey: ['technician-job', id],
@@ -96,7 +96,8 @@ const TechnicianJobDetail = () => {
       queryClient.invalidateQueries({ queryKey: ['technician-job', id] })
       setShowEtaModal(false)
 
-      // Start countdown for manual ETA
+      // Start countdown for manual ETA - get etaMinutes from the mutation response
+      const etaMinutes = (data as any)?.eta?.eta_minutes || 30
       const arrivalTime = new Date(Date.now() + etaMinutes * 60000)
       const countdownSeconds = Math.floor((arrivalTime.getTime() - Date.now()) / 1000)
       setEtaCountdown(countdownSeconds)
