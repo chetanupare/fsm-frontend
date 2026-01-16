@@ -666,9 +666,16 @@ const TechnicianJobDetail = () => {
                   <option value="repairing">Repairing</option>
                   <option value="waiting_parts">Waiting for Parts</option>
                   <option value="quality_check">Quality Check</option>
-                  <option value="waiting_payment">Waiting for Payment</option>
-                  <option value="completed">Completed</option>
                 </select>
+              )}
+              {isQualityCheck && (
+                <button
+                  onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'waiting_payment' })}
+                  disabled={updateStatusMutation.isPending}
+                  className="w-full px-4 py-3 bg-pink-600 text-white rounded-lg font-semibold text-sm hover:bg-pink-700 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  Ready for Payment
+                </button>
               )}
             </div>
           )}
