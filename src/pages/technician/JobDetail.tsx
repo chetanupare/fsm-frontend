@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, MapPin, Clock, User, Phone, CheckCircle, Upload, Navigation, FileText } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, User, Phone, CheckCircle, Upload, Navigation, FileText, MessageCircle, AlertCircle } from 'lucide-react'
 import { technicianAPI } from '../../lib/api'
 import { format } from 'date-fns'
 import { useState } from 'react'
@@ -10,6 +10,7 @@ const TechnicianJobDetail = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [showCustomerDetails, setShowCustomerDetails] = useState(false)
 
   const { data: jobData, isLoading } = useQuery({
     queryKey: ['technician-job', id],
@@ -21,10 +22,19 @@ const TechnicianJobDetail = () => {
   const { data: checklistData } = useQuery({
     queryKey: ['technician-checklist', id],
     queryFn: () => technicianAPI.getChecklist(Number(id)).then(res => res.data),
-    enabled: !!job,
+    enabled: !!job && job.status !== 'offered',
   })
 
   const checklist = checklistData?.checklists || checklistData || []
+
+  const acceptMutation = useMutation({
+    mutationFn: () => technicianAPI.acceptJob(Number(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['technician-job', id] })
+      queryClient.invalidateQueries({ queryKey: ['technician-jobs-assigned'] })
+      queryClient.invalidateQueries({ queryKey: ['technician-jobs-offered'] })
+    },
+  })
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
@@ -70,55 +80,27 @@ const TechnicianJobDetail = () => {
   const ticket = job.ticket || {}
   const customer = ticket.customer || {}
   const device = ticket.device || {}
+  const currentStatus = job.status || 'offered'
 
-  const statusColors: Record<string, string> = {
-    accepted: 'bg-blue-100 text-blue-800 border-blue-200',
-    en_route: 'bg-purple-100 text-purple-800 border-purple-200',
-    component_pickup: 'bg-violet-100 text-violet-800 border-violet-200',
-    arrived: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-    diagnosing: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-    quoted: 'bg-teal-100 text-teal-800 border-teal-200',
-    signed_contract: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    repairing: 'bg-orange-100 text-orange-800 border-orange-200',
-    waiting_parts: 'bg-amber-100 text-amber-800 border-amber-200',
-    quality_check: 'bg-cyan-100 text-cyan-800 border-cyan-200',
-    waiting_payment: 'bg-pink-100 text-pink-800 border-pink-200',
-    completed: 'bg-green-100 text-green-800 border-green-200',
-    released: 'bg-slate-100 text-slate-800 border-slate-200',
-  }
+  // Progressive reveal based on status
+  const isOffered = currentStatus === 'offered'
+  const isAccepted = currentStatus === 'accepted'
+  const isEnRoute = currentStatus === 'en_route'
+  const isComponentPickup = currentStatus === 'component_pickup'
+  const isArrived = currentStatus === 'arrived'
+  const isInProgress = ['diagnosing', 'quoted', 'signed_contract', 'repairing', 'waiting_parts', 'quality_check'].includes(currentStatus)
+  const isWaitingPayment = currentStatus === 'waiting_payment'
+  const isCompleted = ['completed', 'released'].includes(currentStatus)
 
-  const statusLabels: Record<string, string> = {
-    accepted: 'Accepted',
-    en_route: 'On My Way',
-    component_pickup: 'Component Pickup',
-    arrived: 'Reached',
-    diagnosing: 'Diagnosed',
-    quoted: 'Quoted',
-    signed_contract: 'Signed Contract',
-    repairing: 'Fixing',
-    waiting_parts: 'Waiting for Parts',
-    quality_check: 'Quality Check',
-    waiting_payment: 'Waiting for Payment',
-    completed: 'Completed',
-    released: 'Released',
-  }
+  // WhatsApp link
+  const whatsappLink = customer.phone 
+    ? `https://wa.me/${customer.phone.replace(/[^0-9]/g, '')}`
+    : null
 
-  const currentStatus = job.status || 'accepted'
-  const nextStatuses: Record<string, string[]> = {
-    accepted: ['en_route', 'component_pickup'],
-    en_route: ['arrived'],
-    component_pickup: ['arrived'],
-    arrived: ['diagnosing'],
-    diagnosing: ['quoted', 'repairing'],
-    quoted: ['signed_contract'],
-    signed_contract: ['repairing'],
-    repairing: ['quality_check', 'waiting_parts'],
-    waiting_parts: ['repairing'],
-    quality_check: ['waiting_payment', 'completed'],
-    waiting_payment: ['completed'],
-  }
-
-  const quickActions = nextStatuses[currentStatus] || []
+  // Get location link
+  const locationLink = ticket.latitude && ticket.longitude
+    ? `https://www.google.com/maps/dir/?api=1&destination=${ticket.latitude},${ticket.longitude}`
+    : null
 
   return (
     <div className="pb-20 md:pb-8">
@@ -133,241 +115,446 @@ const TechnicianJobDetail = () => {
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold text-slate-900">Job #{job.id}</h1>
-            <p className="text-xs text-slate-600 truncate">{device.brand} {device.device_type}</p>
+            {!isOffered && (
+              <p className="text-xs text-slate-600 truncate">{device.brand} {device.device_type}</p>
+            )}
           </div>
-          <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${
-            statusColors[currentStatus] || 'bg-slate-100 text-slate-800 border-slate-200'
-          }`}>
-            {statusLabels[currentStatus] || currentStatus.replace('_', ' ')}
-          </span>
         </div>
       </div>
 
       <div className="px-4 md:px-0 space-y-3 md:space-y-4 md:max-w-4xl md:mx-auto pt-3 md:pt-6">
 
-      {/* Quick Actions Bar - Most Important */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
-        <div className="grid grid-cols-2 gap-2">
-          {customer.phone && (
-            <a
-              href={`tel:${customer.phone}`}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold text-sm active:scale-95 transition-all"
-            >
-              <Phone className="w-4 h-4" />
-              Call Customer
-            </a>
-          )}
-          {ticket.latitude && ticket.longitude && (
-            <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${ticket.latitude},${ticket.longitude}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold text-sm active:scale-95 transition-all"
-            >
-              <Navigation className="w-4 h-4" />
-              Navigate
-            </a>
-          )}
-        </div>
-      </div>
+      {/* OFFERED STATE - Minimal View */}
+      {isOffered && (
+        <>
+          {/* Device Details */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 md:p-6">
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <FileText className="w-8 h-8 text-blue-600" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 mb-1">
+                {device.brand} {device.device_type}
+              </h2>
+              <p className="text-sm text-slate-600">Repair Request</p>
+            </div>
 
-      {/* Customer Contact - Compact */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <User className="w-4 h-4 text-slate-500" />
-            <span className="font-semibold text-slate-900 text-sm">{customer.name || 'Customer'}</span>
+            {/* Issue Description */}
+            {ticket.issue_description && (
+              <div className="mb-4 pt-4 border-t border-slate-200">
+                <h3 className="text-xs font-semibold text-slate-700 mb-2">Issue Description</h3>
+                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-lg">
+                  {ticket.issue_description}
+                </p>
+              </div>
+            )}
+
+            {/* Timing */}
+            {ticket.preferred_date && (
+              <div className="flex items-center gap-2 text-sm text-slate-600 mb-4 pt-4 border-t border-slate-200">
+                <Clock className="w-4 h-4 text-slate-500" />
+                <span>
+                  {format(new Date(ticket.preferred_date), 'MMM dd, yyyy')} 
+                  {ticket.preferred_time && ` at ${ticket.preferred_time}`}
+                </span>
+              </div>
+            )}
+
+            {/* Having Issue Button */}
+            <button
+              onClick={() => {
+                // Navigate to support or show issue modal
+                if (window.confirm('Need help? Contact support or reject this job offer.')) {
+                  navigate('/dashboard')
+                }
+              }}
+              className="w-full mb-3 px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg border border-slate-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+              <AlertCircle className="w-4 h-4" />
+              Having an issue?
+            </button>
+
+            {/* Accept Button - Big CTA */}
+            <button
+              onClick={() => acceptMutation.mutate()}
+              disabled={acceptMutation.isPending}
+              className="w-full px-6 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20"
+            >
+              {acceptMutation.isPending ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Accepting...</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <CheckCircle className="w-5 h-5" />
+                  <span>Accept Job</span>
+                </div>
+              )}
+            </button>
           </div>
-          {customer.phone && (
-            <a
-              href={`tel:${customer.phone}`}
-              className="p-2 bg-blue-50 text-blue-600 rounded-lg active:scale-95 transition-all"
-            >
-              <Phone className="w-4 h-4" />
-            </a>
-          )}
-        </div>
-        {customer.phone && (
-          <a href={`tel:${customer.phone}`} className="text-sm text-blue-600 font-medium block">
-            {customer.phone}
-          </a>
-        )}
-        {customer.email && (
-          <a href={`mailto:${customer.email}`} className="text-xs text-slate-600 block mt-1">
-            {customer.email}
-          </a>
-        )}
-      </div>
+        </>
+      )}
 
-      {/* Location - Compact */}
-      {ticket.address && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
-          <div className="flex items-start gap-2">
-            <MapPin className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900">{ticket.address}</p>
-              {ticket.latitude && ticket.longitude && (
+      {/* ACCEPTED STATE - Reveal Customer Info */}
+      {isAccepted && (
+        <>
+          {/* Device Details */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+            <h2 className="text-lg font-bold text-slate-900 mb-1">
+              {device.brand} {device.device_type}
+            </h2>
+            {ticket.issue_description && (
+              <p className="text-sm text-slate-600 mt-2">{ticket.issue_description}</p>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 space-y-2">
+            {/* Get Location */}
+            {locationLink && (
+              <a
+                href={locationLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 active:scale-95 transition-all"
+              >
+                <Navigation className="w-4 h-4" />
+                Get Location
+              </a>
+            )}
+
+            {/* Customer Details Toggle */}
+            <button
+              onClick={() => setShowCustomerDetails(!showCustomerDetails)}
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-slate-100 text-slate-700 rounded-lg font-semibold text-sm hover:bg-slate-200 active:scale-95 transition-all"
+            >
+              <User className="w-4 h-4" />
+              {showCustomerDetails ? 'Hide' : 'Show'} Customer Details
+            </button>
+
+            {/* Customer Details Panel */}
+            {showCustomerDetails && (
+              <div className="mt-2 p-3 bg-slate-50 rounded-lg space-y-2 border border-slate-200">
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Name</p>
+                  <p className="text-sm font-medium text-slate-900">{customer.name || 'N/A'}</p>
+                </div>
+                {customer.phone && (
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Phone</p>
+                    <a href={`tel:${customer.phone}`} className="text-sm font-medium text-blue-600">
+                      {customer.phone}
+                    </a>
+                  </div>
+                )}
+                {customer.email && (
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Email</p>
+                    <a href={`mailto:${customer.email}`} className="text-sm font-medium text-blue-600">
+                      {customer.email}
+                    </a>
+                  </div>
+                )}
+                {ticket.address && (
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Address</p>
+                    <p className="text-sm font-medium text-slate-900">{ticket.address}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Call & WhatsApp Buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              {customer.phone && (
+                <>
+                  <a
+                    href={`tel:${customer.phone}`}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all"
+                  >
+                    <Phone className="w-4 h-4" />
+                    Call
+                  </a>
+                  {whatsappLink && (
+                    <a
+                      href={whatsappLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold text-sm hover:bg-green-600 active:scale-95 transition-all"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      WhatsApp
+                    </a>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* On My Way Button - Bottom CTA */}
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 md:static md:border-0 md:bg-transparent md:p-0 md:mt-4">
+            <button
+              onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'en_route' })}
+              disabled={updateStatusMutation.isPending}
+              className="w-full px-6 py-4 bg-purple-600 text-white rounded-xl font-bold text-lg hover:bg-purple-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-600/20"
+            >
+              {updateStatusMutation.isPending ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Updating...</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <Navigation className="w-5 h-5" />
+                  <span>On My Way</span>
+                </div>
+              )}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* EN ROUTE / COMPONENT PICKUP / ARRIVED / IN PROGRESS STATES */}
+      {(isEnRoute || isComponentPickup || isArrived || isInProgress || isWaitingPayment || isCompleted) && (
+        <>
+          {/* Device Details */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+            <h2 className="text-lg font-bold text-slate-900 mb-1">
+              {device.brand} {device.device_type}
+            </h2>
+            {ticket.issue_description && (
+              <p className="text-sm text-slate-600 mt-2">{ticket.issue_description}</p>
+            )}
+          </div>
+
+          {/* Quick Actions Bar */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
+            <div className="grid grid-cols-2 gap-2">
+              {customer.phone && (
                 <a
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${ticket.latitude},${ticket.longitude}`}
+                  href={`tel:${customer.phone}`}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold text-sm active:scale-95 transition-all"
+                >
+                  <Phone className="w-4 h-4" />
+                  Call Customer
+                </a>
+              )}
+              {locationLink && (
+                <a
+                  href={locationLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-blue-600 font-medium mt-1 inline-block"
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold text-sm active:scale-95 transition-all"
                 >
-                  Open in Maps →
+                  <Navigation className="w-4 h-4" />
+                  Navigate
                 </a>
               )}
             </div>
+            {whatsappLink && (
+              <a
+                href={whatsappLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 bg-green-500 text-white rounded-lg font-semibold text-sm hover:bg-green-600 active:scale-95 transition-all"
+              >
+                <MessageCircle className="w-4 h-4" />
+                WhatsApp Customer
+              </a>
+            )}
           </div>
-          {ticket.preferred_date && (
-            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
-              <Clock className="w-4 h-4 text-slate-500" />
-              <span className="text-xs text-slate-600">
-                {format(new Date(ticket.preferred_date), 'MMM dd, yyyy')} {ticket.preferred_time && `at ${ticket.preferred_time}`}
-              </span>
+
+          {/* Customer Contact */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-slate-500" />
+                <span className="font-semibold text-slate-900 text-sm">{customer.name || 'Customer'}</span>
+              </div>
+            </div>
+            {customer.phone && (
+              <a href={`tel:${customer.phone}`} className="text-sm text-blue-600 font-medium block">
+                {customer.phone}
+              </a>
+            )}
+            {customer.email && (
+              <a href={`mailto:${customer.email}`} className="text-xs text-slate-600 block mt-1">
+                {customer.email}
+              </a>
+            )}
+            {ticket.address && (
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-slate-700">{ticket.address}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Status Update - Progressive */}
+          {!isCompleted && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
+              <label className="block text-xs font-semibold text-slate-700 mb-2">Update Status</label>
+              {isEnRoute && (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'arrived' })}
+                    disabled={updateStatusMutation.isPending}
+                    className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg font-semibold text-sm hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    I've Arrived
+                  </button>
+                  <button
+                    onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'component_pickup' })}
+                    disabled={updateStatusMutation.isPending}
+                    className="w-full px-4 py-3 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    Component Pickup (Optional)
+                  </button>
+                </div>
+              )}
+              {isComponentPickup && (
+                <button
+                  onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'arrived' })}
+                  disabled={updateStatusMutation.isPending}
+                  className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg font-semibold text-sm hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  Arrived at Customer
+                </button>
+              )}
+              {isArrived && (
+                <button
+                  onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'diagnosing' })}
+                  disabled={updateStatusMutation.isPending}
+                  className="w-full px-4 py-3 bg-yellow-600 text-white rounded-lg font-semibold text-sm hover:bg-yellow-700 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  Start Diagnosing
+                </button>
+              )}
+              {isInProgress && (
+                <select
+                  value={currentStatus}
+                  onChange={(e) => updateStatusMutation.mutate({ id: job.id, status: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                  disabled={updateStatusMutation.isPending}
+                >
+                  <option value="diagnosing">Diagnosing</option>
+                  <option value="quoted">Quoted</option>
+                  <option value="signed_contract">Signed Contract</option>
+                  <option value="repairing">Repairing</option>
+                  <option value="waiting_parts">Waiting for Parts</option>
+                  <option value="quality_check">Quality Check</option>
+                  <option value="waiting_payment">Waiting for Payment</option>
+                  <option value="completed">Completed</option>
+                </select>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Quick Status Update */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
-        <label className="block text-xs font-semibold text-slate-700 mb-2">Update Status</label>
-        <select
-          value={currentStatus}
-          onChange={(e) => updateStatusMutation.mutate({ id: job.id, status: e.target.value })}
-          className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-          disabled={updateStatusMutation.isPending}
-        >
-          <option value="accepted">Accepted</option>
-          <option value="en_route">On My Way</option>
-          <option value="component_pickup">Component Pickup</option>
-          <option value="arrived">Reached</option>
-          <option value="diagnosing">Diagnosed</option>
-          <option value="quoted">Quoted</option>
-          <option value="signed_contract">Signed Contract</option>
-          <option value="repairing">Fixing</option>
-          <option value="waiting_parts">Waiting for Parts</option>
-          <option value="quality_check">Quality Check</option>
-          <option value="waiting_payment">Waiting for Payment</option>
-          <option value="completed">Completed</option>
-        </select>
-        {updateStatusMutation.isPending && (
-          <p className="text-xs text-slate-500 mt-1.5">Updating...</p>
-        )}
-        {quickActions.length > 0 && (
-          <div className="flex gap-2 mt-2">
-            {quickActions.map((status) => (
-              <button
-                key={status}
-                onClick={() => updateStatusMutation.mutate({ id: job.id, status })}
-                disabled={updateStatusMutation.isPending}
-                className="px-3 py-1.5 bg-slate-50 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-100 active:scale-95 transition-all disabled:opacity-50"
-              >
-                {statusLabels[status] || status.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+          {/* Issue Description */}
+          {ticket.issue_description && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="w-4 h-4 text-slate-500" />
+                <h3 className="text-xs font-semibold text-slate-700">Issue</h3>
+              </div>
+              <p className="text-sm text-slate-700 leading-relaxed">{ticket.issue_description}</p>
+            </div>
+          )}
 
-      {/* Issue Description - Compact */}
-      {ticket.issue_description && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="w-4 h-4 text-slate-500" />
-            <h3 className="text-xs font-semibold text-slate-700">Issue</h3>
-          </div>
-          <p className="text-sm text-slate-700 leading-relaxed">{ticket.issue_description}</p>
-        </div>
-      )}
-
-      {/* Checklist - Compact */}
-      {checklist && checklist.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
-          <h3 className="text-xs font-semibold text-slate-700 mb-3">Checklist ({checklist.filter((item: any) => item.is_completed || item.completed).length}/{checklist.length})</h3>
-          <div className="space-y-2">
-            {checklist.map((item: any) => {
-              const isCompleted = item.is_completed || item.completed
-              return (
-                <div
-                  key={item.id}
-                  className={`flex items-center justify-between p-2.5 rounded-lg ${
-                    isCompleted ? 'bg-green-50 border border-green-200' : 'bg-slate-50 border border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {isCompleted ? (
-                      <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-                    ) : (
-                      <div className="w-4 h-4 rounded-full border-2 border-slate-400 flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${isCompleted ? 'text-green-800 line-through' : 'text-slate-900'}`}>
-                        {item.name || item.task}
-                      </p>
-                      {item.description && (
-                        <p className="text-xs text-slate-600 mt-0.5">{item.description}</p>
+          {/* Checklist */}
+          {checklist && checklist.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 md:p-4">
+              <h3 className="text-xs font-semibold text-slate-700 mb-3">
+                Checklist ({checklist.filter((item: any) => item.is_completed || item.completed).length}/{checklist.length})
+              </h3>
+              <div className="space-y-2">
+                {checklist.map((item: any) => {
+                  const isCompleted = item.is_completed || item.completed
+                  return (
+                    <div
+                      key={item.id}
+                      className={`flex items-center justify-between p-2.5 rounded-lg ${
+                        isCompleted ? 'bg-green-50 border border-green-200' : 'bg-slate-50 border border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {isCompleted ? (
+                          <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                        ) : (
+                          <div className="w-4 h-4 rounded-full border-2 border-slate-400 flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium ${isCompleted ? 'text-green-800 line-through' : 'text-slate-900'}`}>
+                            {item.name || item.task}
+                          </p>
+                          {item.description && (
+                            <p className="text-xs text-slate-600 mt-0.5">{item.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      {!isCompleted && (
+                        <button
+                          onClick={() => completeChecklistMutation.mutate(item.id)}
+                          disabled={completeChecklistMutation.isPending}
+                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          Done
+                        </button>
                       )}
                     </div>
-                  </div>
-                  {!isCompleted && (
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Additional Actions - Collapsible */}
+          <details className="bg-white rounded-xl shadow-sm border border-slate-100">
+            <summary className="px-3 py-3 md:px-4 md:py-4 cursor-pointer text-sm font-semibold text-slate-700 list-none">
+              <div className="flex items-center justify-between">
+                <span>More Actions</span>
+                <span className="text-xs text-slate-500">▼</span>
+              </div>
+            </summary>
+            <div className="px-3 pb-3 md:px-4 md:pb-4 space-y-3 border-t border-slate-100 pt-3">
+              {/* Upload After Photo */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">Upload Photo</label>
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    className="text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                  />
+                  {selectedFile && (
                     <button
-                      onClick={() => completeChecklistMutation.mutate(item.id)}
-                      disabled={completeChecklistMutation.isPending}
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50"
+                      onClick={() => uploadPhotoMutation.mutate(selectedFile)}
+                      disabled={uploadPhotoMutation.isPending}
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
                     >
-                      Done
+                      {uploadPhotoMutation.isPending ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Upload
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Additional Actions - Collapsible */}
-      <details className="bg-white rounded-xl shadow-sm border border-slate-100">
-        <summary className="px-3 py-3 md:px-4 md:py-4 cursor-pointer text-sm font-semibold text-slate-700 list-none">
-          <div className="flex items-center justify-between">
-            <span>More Actions</span>
-            <span className="text-xs text-slate-500">▼</span>
-          </div>
-        </summary>
-        <div className="px-3 pb-3 md:px-4 md:pb-4 space-y-3 border-t border-slate-100 pt-3">
-          {/* Upload After Photo */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2">Upload Photo</label>
-            <div className="flex flex-col gap-2">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                className="text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
-              />
-              {selectedFile && (
-                <button
-                  onClick={() => uploadPhotoMutation.mutate(selectedFile)}
-                  disabled={uploadPhotoMutation.isPending}
-                  className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {uploadPhotoMutation.isPending ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      Upload
-                    </>
-                  )}
-                </button>
-              )}
+                {selectedFile && (
+                  <p className="text-xs text-slate-500 mt-1.5">Selected: {selectedFile.name}</p>
+                )}
+              </div>
             </div>
-            {selectedFile && (
-              <p className="text-xs text-slate-500 mt-1.5">Selected: {selectedFile.name}</p>
-            )}
-          </div>
-        </div>
-      </details>
+          </details>
+        </>
+      )}
 
       </div>
     </div>
