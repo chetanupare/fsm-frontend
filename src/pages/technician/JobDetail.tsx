@@ -92,12 +92,11 @@ const TechnicianJobDetail = () => {
 
   const updateEtaMutation = useMutation({
     mutationFn: (etaMinutes: number) => technicianAPI.updateJobEta(Number(id), etaMinutes),
-    onSuccess: () => {
+    onSuccess: (_, etaMinutes) => {
       queryClient.invalidateQueries({ queryKey: ['technician-job', id] })
       setShowEtaModal(false)
 
-      // Start countdown for manual ETA - get etaMinutes from the mutation response
-      const etaMinutes = (data as any)?.eta?.eta_minutes || 30
+      // Start countdown for manual ETA
       const arrivalTime = new Date(Date.now() + etaMinutes * 60000)
       const countdownSeconds = Math.floor((arrivalTime.getTime() - Date.now()) / 1000)
       setEtaCountdown(countdownSeconds)
