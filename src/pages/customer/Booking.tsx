@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { Calendar, MapPin, Wrench, AlertCircle, CheckCircle, Navigation, Loader } from 'lucide-react'
 import { customerAPI, publicAPI } from '../../lib/api'
 import { useLocation } from '../../hooks/useLocation'

@@ -8,8 +8,7 @@ import {
   Briefcase, 
   LogOut, 
   Menu,
-  X,
-  User
+  X
 } from 'lucide-react'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'

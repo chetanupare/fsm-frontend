@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import { Calendar, MapPin, Clock, CheckCircle, AlertCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { customerAPI } from '../../lib/api'

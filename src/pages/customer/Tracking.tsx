@@ -1,6 +1,5 @@
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
 import { MapPin, Clock, User, Phone, CheckCircle, AlertCircle, Loader, Calendar, ArrowLeft, Navigation } from 'lucide-react'
 import { customerAPI } from '../../lib/api'
 import { format } from 'date-fns'
@@ -20,8 +19,9 @@ const CustomerTracking = () => {
     queryKey: ['track-ticket', ticketId],
     queryFn: () => customerAPI.trackTicket(Number(ticketId)).then(res => res.data),
     enabled: !!ticketId,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Auto-refresh every 2 minutes if technician is en route
+      const data = query.state.data as any;
       if (data?.job?.status === 'en_route' || data?.job?.status === 'component_pickup') {
         return 120000 // 2 minutes
       }

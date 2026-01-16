@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, MapPin, Clock, User, Phone, CheckCircle, Upload, Navigation, MessageCircle, FileText } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, User, Phone, CheckCircle, Upload, Navigation, FileText } from 'lucide-react'
 import { technicianAPI } from '../../lib/api'
 import { format } from 'date-fns'
 import { useState } from 'react'
