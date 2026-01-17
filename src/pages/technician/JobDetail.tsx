@@ -786,15 +786,20 @@ const TechnicianJobDetail = () => {
                   </a>
                 )}
                 {locationLink && (
-                  <a
-                    href={locationLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => {
+                      if (jobData.locations?.customer) {
+                        const customerLat = jobData.locations.customer.latitude
+                        const customerLng = jobData.locations.customer.longitude
+                        const url = `https://www.google.com/maps/dir/?api=1&destination=${customerLat},${customerLng}`
+                        window.open(url, '_blank')
+                      }
+                    }}
                     className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold text-sm active:scale-95 transition-all"
                   >
                     <Navigation className="w-4 h-4" />
-                    Navigate
-                  </a>
+                    Get Directions
+                  </button>
                 )}
               </div>
               {whatsappLink && (
@@ -871,13 +876,61 @@ const TechnicianJobDetail = () => {
                 </button>
               )}
               {isArrived && (
-                <button
-                  onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'diagnosing' })}
-                  disabled={updateStatusMutation.isPending}
-                  className="w-full px-4 py-3 bg-yellow-600 text-white rounded-lg font-semibold text-sm hover:bg-yellow-700 active:scale-95 transition-all disabled:opacity-50"
-                >
-                  Start Diagnosing
-                </button>
+                <div className="space-y-4">
+                  {/* Photo Upload Section */}
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-slate-900 mb-2">Upload Arrival Photo</h4>
+                    <p className="text-xs text-slate-600 mb-3">
+                      Take a photo at the customer's location as proof of arrival.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                        className="text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                      />
+                      {selectedFile && (
+                        <button
+                          onClick={() => uploadPhotoMutation.mutate(selectedFile)}
+                          disabled={uploadPhotoMutation.isPending}
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          {uploadPhotoMutation.isPending ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4" />
+                              Upload Photo
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    {selectedFile && (
+                      <p className="text-xs text-slate-500 mt-2">Selected: {selectedFile.name}</p>
+                    )}
+                  </div>
+
+                  {/* Start Diagnosing Button */}
+                  <button
+                    onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'diagnosing' })}
+                    disabled={updateStatusMutation.isPending}
+                    className="w-full px-6 py-4 bg-yellow-600 text-white rounded-lg font-bold text-base hover:bg-yellow-700 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-yellow-600/20"
+                  >
+                    {updateStatusMutation.isPending ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Updating...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <FileText className="w-5 h-5" />
+                        <span>Start Diagnosing</span>
+                      </div>
+                    )}
+                  </button>
+                </div>
               )}
               {isInProgress && (
                 <select
