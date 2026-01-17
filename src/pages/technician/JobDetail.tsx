@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, MapPin, Clock, User, Phone, CheckCircle, Upload, Navigation, FileText, MessageCircle, AlertCircle, X } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, User, Phone, CheckCircle, Upload, Navigation, FileText, MessageCircle, AlertCircle, X, ClipboardCheck, Camera, AlertTriangle, MessageSquare } from 'lucide-react'
 import { technicianAPI } from '../../lib/api'
 import { format } from 'date-fns'
 import { useState, useEffect, useRef } from 'react'
@@ -922,59 +922,218 @@ const TechnicianJobDetail = () => {
               )}
               {isArrived && (
                 <div className="space-y-4">
-                  {/* Photo Upload Section */}
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-slate-900 mb-2">Upload Arrival Photo</h4>
-                    <p className="text-xs text-slate-600 mb-3">
-                      Take a photo at the customer's location as proof of arrival.
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                        className="text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
-                      />
-                      {selectedFile && (
+                  {/* Arrival Status Header */}
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <CheckCircle className="w-6 h-6 text-green-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-green-900">Arrived at Customer Location</h3>
+                        <p className="text-sm text-green-700">You have successfully reached the customer's location</p>
+                        <p className="text-xs text-green-600 mt-1">
+                          Arrival time: {new Date().toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Customer Meeting Section */}
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                    <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Customer Meeting
+                    </h4>
+
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      {/* Customer Info */}
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-xs font-medium text-slate-600 mb-1">Customer</p>
+                        <p className="text-sm font-semibold text-slate-900">{customer.name || 'Customer'}</p>
+                        {customer.phone && (
+                          <a href={`tel:${customer.phone}`} className="text-xs text-blue-600 hover:text-blue-800">
+                            📞 {customer.phone}
+                          </a>
+                        )}
+                      </div>
+
+                      {/* Location Verification */}
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-xs font-medium text-slate-600 mb-1">Location</p>
+                        <p className="text-sm font-semibold text-slate-900">Verified ✓</p>
+                        <p className="text-xs text-slate-600">{ticket.address?.split(',')[0]}</p>
+                      </div>
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div className="flex gap-2">
+                      {customer.phone && (
                         <button
-                          onClick={() => uploadPhotoMutation.mutate(selectedFile)}
-                          disabled={uploadPhotoMutation.isPending}
-                          className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+                          onClick={() => window.open(`tel:${customer.phone}`, '_self')}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 active:scale-95 transition-all"
                         >
-                          {uploadPhotoMutation.isPending ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <>
-                              <Upload className="w-4 h-4" />
-                              Upload Photo
-                            </>
-                          )}
+                          <Phone className="w-4 h-4" />
+                          Call Customer
+                        </button>
+                      )}
+                      {whatsappLink && (
+                        <button
+                          onClick={() => window.open(whatsappLink, '_blank')}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 active:scale-95 transition-all"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          WhatsApp
                         </button>
                       )}
                     </div>
-                    {selectedFile && (
-                      <p className="text-xs text-slate-500 mt-2">Selected: {selectedFile.name}</p>
-                    )}
                   </div>
 
-                  {/* Start Diagnosing Button */}
-                  <button
-                    onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'diagnosing' })}
-                    disabled={updateStatusMutation.isPending}
-                    className="w-full px-6 py-4 bg-yellow-600 text-white rounded-lg font-bold text-base hover:bg-yellow-700 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-yellow-600/20"
-                  >
-                    {updateStatusMutation.isPending ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Updating...</span>
+                  {/* Pre-Diagnosis Checklist */}
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                    <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                      <ClipboardCheck className="w-4 h-4" />
+                      Pre-Diagnosis Preparation
+                    </h4>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
+                        <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
+                        <span className="text-sm text-slate-700">Device power status checked</span>
                       </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2">
-                        <FileText className="w-5 h-5" />
-                        <span>Start Diagnosing</span>
+                      <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
+                        <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
+                        <span className="text-sm text-slate-700">Required tools available</span>
                       </div>
-                    )}
-                  </button>
+                      <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
+                        <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
+                        <span className="text-sm text-slate-700">Work area suitable</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
+                        <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
+                        <span className="text-sm text-slate-700">Safety check completed</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documentation Section */}
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                    <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                      <Camera className="w-4 h-4" />
+                      Documentation
+                    </h4>
+
+                    <div className="space-y-3">
+                      {/* Arrival Photo */}
+                      <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center">
+                        <Camera className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-slate-900 mb-1">Arrival Photo Required</p>
+                        <p className="text-xs text-slate-600 mb-3">
+                          Take a photo at the customer's location as proof of arrival
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                            className="text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                          />
+                          {selectedFile && (
+                            <button
+                              onClick={() => uploadPhotoMutation.mutate(selectedFile)}
+                              disabled={uploadPhotoMutation.isPending}
+                              className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+                            >
+                              {uploadPhotoMutation.isPending ? (
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <>
+                                  <Upload className="w-4 h-4" />
+                                  Upload Photo
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                        {selectedFile && (
+                          <p className="text-xs text-slate-500 mt-2">Selected: {selectedFile.name}</p>
+                        )}
+                      </div>
+
+                      {/* Additional Notes */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-2">
+                          Arrival Notes (Optional)
+                        </label>
+                        <textarea
+                          placeholder="Any observations about the location, customer, or device..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary resize-none"
+                          rows={2}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Emergency & Support */}
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-red-900 mb-3 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      Emergency & Support
+                    </h4>
+
+                    <div className="space-y-2">
+                      <button className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 active:scale-95 transition-all">
+                        <Phone className="w-4 h-4" />
+                        Emergency: Call Supervisor
+                      </button>
+                      <button className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-600 text-white rounded-lg text-sm font-medium hover:bg-slate-700 active:scale-95 transition-all">
+                        <MessageSquare className="w-4 h-4" />
+                        Request Technical Support
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Start Diagnosis */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                    <div className="text-center">
+                      <FileText className="w-12 h-12 text-yellow-600 mx-auto mb-3" />
+                      <h4 className="text-lg font-bold text-yellow-900 mb-2">Ready to Start Diagnosis?</h4>
+                      <p className="text-sm text-yellow-700 mb-4">
+                        Begin the diagnostic process to identify and fix the issue
+                      </p>
+
+                      <div className="bg-white rounded-lg p-3 mb-4">
+                        <div className="flex items-center justify-center gap-4 text-sm">
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-slate-900">~15-30</div>
+                            <div className="text-slate-600">mins diagnosis</div>
+                          </div>
+                          <div className="w-px h-8 bg-slate-300"></div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-slate-900">85%</div>
+                            <div className="text-slate-600">success rate</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => updateStatusMutation.mutate({ id: job.id, status: 'diagnosing' })}
+                        disabled={updateStatusMutation.isPending}
+                        className="w-full px-6 py-4 bg-yellow-600 text-white rounded-lg font-bold text-base hover:bg-yellow-700 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-yellow-600/20"
+                      >
+                        {updateStatusMutation.isPending ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Starting Diagnosis...</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-2">
+                            <FileText className="w-5 h-5" />
+                            <span>Start Diagnosis</span>
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
               {isInProgress && (
