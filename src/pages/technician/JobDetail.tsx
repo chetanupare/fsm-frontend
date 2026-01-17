@@ -102,6 +102,22 @@ const TechnicianJobDetail = () => {
       setEtaCountdown(countdownSeconds)
       setEtaTimeoutReached(false)
 
+      // Continue countdown even after negative (running late)
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+      }
+      countdownIntervalRef.current = setInterval(() => {
+        setEtaCountdown(prev => {
+          const newValue = prev! - 1
+          if (newValue <= -3600) { // Stop after 1 hour late
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current)
+            }
+          }
+          return newValue
+        })
+      }, 1000)
+
       // Start countdown timer
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current)
