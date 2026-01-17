@@ -654,14 +654,49 @@ const TechnicianJobDetail = () => {
                       )}
 
                       {/* Countdown Timer for Manual ETA */}
-                      {jobData.eta.is_manual && etaCountdown !== null && etaCountdown > 0 && (
-                        <div className="mt-2 p-2 bg-black/20 rounded-lg">
-                          <div className="text-xs opacity-90 mb-1">Time Remaining</div>
-                          <div className="text-lg font-bold tabular-nums">
-                            {Math.floor(etaCountdown / 3600).toString().padStart(2, '0')}:
-                            {Math.floor((etaCountdown % 3600) / 60).toString().padStart(2, '0')}:
-                            {(etaCountdown % 60).toString().padStart(2, '0')}
-                          </div>
+                      {jobData.eta.is_manual && etaCountdown !== null && (
+                        <div className={`mt-2 p-3 rounded-lg border ${
+                          etaCountdown > 0
+                            ? etaCountdown <= 300 // 5 minutes or less
+                              ? 'bg-orange-50 border-orange-200'
+                              : 'bg-green-50 border-green-200'
+                            : 'bg-red-50 border-red-200'
+                        }`}>
+                          <p className={`text-xs font-medium mb-1 ${
+                            etaCountdown > 0
+                              ? etaCountdown <= 300
+                                ? 'text-orange-700'
+                                : 'text-green-700'
+                              : 'text-red-700'
+                          }`}>
+                            {etaCountdown > 0 ? 'Time Remaining' : 'Running Late By'}
+                          </p>
+                          <p className={`text-xl font-mono font-bold tabular-nums ${
+                            etaCountdown > 0
+                              ? etaCountdown <= 300
+                                ? 'text-orange-900'
+                                : 'text-green-900'
+                              : 'text-red-900'
+                          }`}>
+                            {etaCountdown > 0 ? (
+                              <>
+                                {Math.floor(etaCountdown / 3600).toString().padStart(2, '0')}:
+                                {Math.floor((etaCountdown % 3600) / 60).toString().padStart(2, '0')}:
+                                {(etaCountdown % 60).toString().padStart(2, '0')}
+                              </>
+                            ) : (
+                              <>
+                                {Math.floor(Math.abs(etaCountdown) / 3600).toString().padStart(2, '0')}:
+                                {Math.floor((Math.abs(etaCountdown) % 3600) / 60).toString().padStart(2, '0')}:
+                                {(Math.abs(etaCountdown) % 60).toString().padStart(2, '0')}
+                              </>
+                            )}
+                          </p>
+                          {etaCountdown <= 0 && (
+                            <p className="text-xs text-red-600 mt-1">
+                              ETA was {jobData.eta.eta_text}
+                            </p>
+                          )}
                         </div>
                       )}
 
