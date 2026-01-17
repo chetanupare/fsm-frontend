@@ -549,31 +549,133 @@ const TechnicianJobDetail = () => {
         </>
       )}
 
-      {/* EN ROUTE / COMPONENT PICKUP / ARRIVED / IN PROGRESS / QUALITY CHECK / WAITING PAYMENT STATES */}
-      {(isEnRoute || isComponentPickup || isArrived || isInProgress || isQualityCheck || isWaitingPayment || isCompleted) && (
-        <>
-          {/* Status Badge - Only show for en_route and component_pickup */}
-          {(isEnRoute || isComponentPickup) && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-medium text-slate-900">
-                    {isEnRoute ? 'On the Way' : 'Component Pickup'}
-                  </h3>
-                  <p className="text-xs text-slate-600 mt-1">
-                    {isEnRoute ? 'Traveling to customer location' : 'Picking up components for repair'}
-                  </p>
-                </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  isEnRoute
-                    ? 'bg-purple-100 text-purple-800'
-                    : 'bg-violet-100 text-violet-800'
+          {/* EN ROUTE / COMPONENT PICKUP / ARRIVED / IN PROGRESS / QUALITY CHECK / WAITING PAYMENT STATES */}
+          {(isEnRoute || isComponentPickup || isArrived || isInProgress || isQualityCheck || isWaitingPayment || isCompleted) && (
+            <>
+              {/* ETA Countdown - Show above status for en_route */}
+              {isEnRoute && jobData?.eta?.is_manual && etaCountdown !== null && (
+                <div className={`rounded-xl shadow-sm border p-4 ${
+                  etaCountdown > 0
+                    ? etaCountdown <= 300
+                      ? 'bg-orange-50 border-orange-200'
+                      : 'bg-green-50 border-green-200'
+                    : 'bg-red-50 border-red-200'
                 }`}>
-                  {isEnRoute ? 'EN ROUTE' : 'PICKUP'}
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium mb-1 ${
+                        etaCountdown > 0
+                          ? etaCountdown <= 300
+                            ? 'text-orange-700'
+                            : 'text-green-700'
+                          : 'text-red-700'
+                      }`}>
+                        {etaCountdown > 0 ? 'Time Remaining' : 'Running Late By'}
+                      </p>
+                      <p className={`text-2xl font-mono font-bold tabular-nums ${
+                        etaCountdown > 0
+                          ? etaCountdown <= 300
+                            ? 'text-orange-900'
+                            : 'text-green-900'
+                          : 'text-red-900'
+                      }`}>
+                        {etaCountdown > 0 ? (
+                          <>
+                            {Math.floor(etaCountdown / 3600).toString().padStart(2, '0')}:
+                            {Math.floor((etaCountdown % 3600) / 60).toString().padStart(2, '0')}:
+                            {(etaCountdown % 60).toString().padStart(2, '0')}
+                          </>
+                        ) : (
+                          <>
+                            {Math.floor(Math.abs(etaCountdown) / 3600).toString().padStart(2, '0')}:
+                            {Math.floor((Math.abs(etaCountdown) % 3600) / 60).toString().padStart(2, '0')}:
+                            {(Math.abs(etaCountdown) % 60).toString().padStart(2, '0')}
+                          </>
+                        )}
+                      </p>
+                      {etaCountdown <= 0 && (
+                        <p className="text-xs text-red-600 mt-1">
+                          ETA was {jobData.eta.eta_text}
+                        </p>
+                      )}
+                    </div>
+                    <Clock className={`w-8 h-8 ${
+                      etaCountdown > 0
+                        ? etaCountdown <= 300
+                          ? 'text-orange-500'
+                          : 'text-green-500'
+                        : 'text-red-500'
+                    }`} />
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
+
+              {/* Status Badge - Only show for en_route and component_pickup */}
+              {(isEnRoute || isComponentPickup) && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium text-slate-900">
+                        {isEnRoute ? 'On the Way' : 'Component Pickup'}
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-1">
+                        {isEnRoute ? 'Traveling to customer location' : 'Picking up components for repair'}
+                      </p>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      isEnRoute
+                        ? 'bg-purple-100 text-purple-800'
+                        : 'bg-violet-100 text-violet-800'
+                    }`}>
+                      {isEnRoute ? 'EN ROUTE' : 'PICKUP'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Get Directions - Only for en_route */}
+              {isEnRoute && jobData?.locations?.customer && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                  <div className="text-center">
+                    <Navigation className="w-12 h-12 text-blue-500 mx-auto mb-3" />
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Get Directions</h3>
+                    <p className="text-sm text-slate-600 mb-4">
+                      Open Google Maps for turn-by-turn directions to the customer location.
+                    </p>
+                    <button
+                      onClick={() => {
+                        const customerLat = jobData.locations.customer.latitude
+                        const customerLng = jobData.locations.customer.longitude
+                        const url = `https://www.google.com/maps/dir/?api=1&destination=${customerLat},${customerLng}`
+                        window.open(url, '_blank')
+                      }}
+                      className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Navigation className="w-4 h-4" />
+                      Open in Google Maps
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Manual ETA Setup - Only for en_route when no ETA is set */}
+              {isEnRoute && !jobData?.eta && !etaTimeoutReached && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                  <div className="text-center">
+                    <Clock className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Set Estimated Arrival Time</h3>
+                    <p className="text-sm text-slate-600 mb-4">
+                      Set your estimated arrival time to help the customer know when to expect you.
+                    </p>
+                    <button
+                      onClick={() => setShowEtaModal(true)}
+                      className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold text-sm hover:bg-purple-700 active:scale-95 transition-all"
+                    >
+                      Set ETA Manually
+                    </button>
+                  </div>
+                </div>
+              )}
 
           {/* Device Details - Compact for en_route */}
           {isEnRoute ? (
@@ -653,52 +755,6 @@ const TechnicianJobDetail = () => {
                         </p>
                       )}
 
-                      {/* Countdown Timer for Manual ETA */}
-                      {jobData.eta.is_manual && etaCountdown !== null && (
-                        <div className={`mt-2 p-3 rounded-lg border ${
-                          etaCountdown > 0
-                            ? etaCountdown <= 300 // 5 minutes or less
-                              ? 'bg-orange-50 border-orange-200'
-                              : 'bg-green-50 border-green-200'
-                            : 'bg-red-50 border-red-200'
-                        }`}>
-                          <p className={`text-xs font-medium mb-1 ${
-                            etaCountdown > 0
-                              ? etaCountdown <= 300
-                                ? 'text-orange-700'
-                                : 'text-green-700'
-                              : 'text-red-700'
-                          }`}>
-                            {etaCountdown > 0 ? 'Time Remaining' : 'Running Late By'}
-                          </p>
-                          <p className={`text-xl font-mono font-bold tabular-nums ${
-                            etaCountdown > 0
-                              ? etaCountdown <= 300
-                                ? 'text-orange-900'
-                                : 'text-green-900'
-                              : 'text-red-900'
-                          }`}>
-                            {etaCountdown > 0 ? (
-                              <>
-                                {Math.floor(etaCountdown / 3600).toString().padStart(2, '0')}:
-                                {Math.floor((etaCountdown % 3600) / 60).toString().padStart(2, '0')}:
-                                {(etaCountdown % 60).toString().padStart(2, '0')}
-                              </>
-                            ) : (
-                              <>
-                                {Math.floor(Math.abs(etaCountdown) / 3600).toString().padStart(2, '0')}:
-                                {Math.floor((Math.abs(etaCountdown) % 3600) / 60).toString().padStart(2, '0')}:
-                                {(Math.abs(etaCountdown) % 60).toString().padStart(2, '0')}
-                              </>
-                            )}
-                          </p>
-                          {etaCountdown <= 0 && (
-                            <p className="text-xs text-red-600 mt-1">
-                              ETA was {jobData.eta.eta_text}
-                            </p>
-                          )}
-                        </div>
-                      )}
 
                       {/* ETA Timeout Warning */}
                       {etaTimeoutReached && jobData.eta.is_manual && (
@@ -732,17 +788,6 @@ const TechnicianJobDetail = () => {
                 </div>
               )}
 
-              {/* Manual ETA Button - Only show if no ETA and not timed out */}
-              {!jobData.eta && !etaTimeoutReached && (
-                <div className="p-4 border-t border-slate-200">
-                  <button
-                    onClick={() => setShowEtaModal(true)}
-                    className="w-full px-4 py-2 bg-yellow-500 text-white rounded-lg font-semibold text-sm hover:bg-yellow-600 active:scale-95 transition-all"
-                  >
-                    Set ETA Manually
-                  </button>
-                </div>
-              )}
 
               {/* ETA Timeout Actions */}
               {etaTimeoutReached && jobData.eta?.is_manual && (
@@ -798,7 +843,7 @@ const TechnicianJobDetail = () => {
                     className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold text-sm active:scale-95 transition-all"
                   >
                     <Navigation className="w-4 h-4" />
-                    Get Directions
+                    Navigate
                   </button>
                 )}
               </div>
