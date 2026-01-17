@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { MapPin, Clock, User, Phone, CheckCircle, AlertCircle, Loader, Calendar, ArrowLeft, Navigation } from 'lucide-react'
 import { customerAPI } from '../../lib/api'
 import { format } from 'date-fns'
+import Map from '../../components/Map'
 
 const CustomerTracking = () => {
   const [searchParams] = useSearchParams()
@@ -240,6 +241,64 @@ const CustomerTracking = () => {
           </div>
         )}
       </div>
+
+      {/* Real-time Map - Show when technician is en route or arrived */}
+      {(tracking.job?.status === 'en_route' || tracking.job?.status === 'component_pickup' || tracking.job?.status === 'arrived') && tracking.technician?.location && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3">
+          <div className="flex items-center gap-2 mb-3">
+            <MapPin className="w-4 h-4 text-slate-600" />
+            <h3 className="text-sm font-semibold text-slate-700">Live Location</h3>
+          </div>
+          <Map
+            center={{
+              lat: tracking.technician.location.lat,
+              lng: tracking.technician.location.lng
+            }}
+            markers={[
+              {
+                position: {
+                  lat: tracking.technician.location.lat,
+                  lng: tracking.technician.location.lng
+                },
+                title: `${tracking.technician.name} - ${statusLabels[tracking.job.status as string] || tracking.job.status}`,
+                icon: tracking.job.status === 'arrived'
+                  ? 'data:image/svg+xml;base64,' + btoa(`
+                    <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="20" cy="20" r="18" fill="#10B981" stroke="white" stroke-width="3"/>
+                      <path d="M14 20l4 4 8-8" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  `)
+                  : 'data:image/svg+xml;base64,' + btoa(`
+                    <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="20" cy="20" r="18" fill="#3B82F6" stroke="white" stroke-width="3"/>
+                      <path d="M20 10v10l6 4" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  `)
+              },
+              // Add customer location if available
+              tracking.customer_location ? {
+                position: {
+                  lat: tracking.customer_location.lat,
+                  lng: tracking.customer_location.lng
+                },
+                title: 'Your Location',
+                icon: 'data:image/svg+xml;base64,' + btoa(`
+                  <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="18" fill="#EF4444" stroke="white" stroke-width="3"/>
+                    <circle cx="20" cy="16" r="5" fill="white"/>
+                  </svg>
+                `)
+              } : null
+            ].filter(Boolean)}
+            className="rounded-lg"
+          />
+          <p className="text-xs text-slate-500 mt-2 text-center">
+            {tracking.job.status === 'arrived'
+              ? `${tracking.technician.name} has arrived at your location`
+              : `Tracking ${tracking.technician.name} in real-time`}
+          </p>
+        </div>
+      )}
 
       {/* Quick Contact - If Technician Available */}
       {tracking.technician && tracking.technician.phone && (
