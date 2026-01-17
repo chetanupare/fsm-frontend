@@ -561,37 +561,49 @@ const TechnicianJobDetail = () => {
 
           {/* Device Details - Compact for en_route */}
           {isEnRoute ? (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3">
-              <div className="flex items-center justify-between">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+              <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-base font-bold text-slate-900 truncate">
+                  <h2 className="text-lg font-bold text-slate-900 mb-1">
                     {device.brand} {device.device_type}
                   </h2>
                   {ticket.issue_description && (
-                    <p className="text-xs text-slate-600 mt-1 line-clamp-2">
+                    <p className="text-sm text-slate-600 leading-relaxed">
                       {ticket.issue_description}
                     </p>
                   )}
-                </div>
-                <div className="flex items-center gap-2 ml-3">
-                  {customer.phone && (
-                    <a
-                      href={`tel:${customer.phone}`}
-                      className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-                    >
-                      <Phone className="w-4 h-4" />
-                    </a>
-                  )}
-                  {whatsappLink && (
-                    <a
-                      href={whatsappLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                    </a>
-                  )}
+
+                  {/* Customer Info */}
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <User className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-medium text-slate-900">{customer.name || 'Customer'}</span>
+                    </div>
+
+                    {/* Contact Actions */}
+                    <div className="flex gap-2">
+                      {customer.phone && (
+                        <a
+                          href={`tel:${customer.phone}`}
+                          className="flex items-center justify-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 active:scale-95 transition-all"
+                        >
+                          <Phone className="w-3 h-3" />
+                          Call
+                        </a>
+                      )}
+                      {whatsappLink && (
+                        <a
+                          href={whatsappLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 active:scale-95 transition-all"
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          WhatsApp
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
